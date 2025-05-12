@@ -1,43 +1,75 @@
 pipeline {
     agent any
-
-    environment {
-        DOCKERHUB_USERNAME = credentials('dockerhub-username')
-        DOCKERHUB_PASSWORD = credentials('dockerhub-password')
+     tools {
+        jdk 'jdk17'
+        nodejs 'node16'
     }
-
+    environment {
+        // Define your environment variables here
+        DOCKERHUB_CREDENTIALS = credentials('dockerhub-credentials')
+        DOCKER_IMAGE = 'ninjaadevops/python-calculator'
+        DOCKER_TAG = 'latest'
+        // Optional: Get commit hash for tagging
+        GIT_COMMIT_SHORT = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
+    }
+    
     stages {
-        stage('Clone Repo') {
+        stage('Checkout') {
             steps {
-                git 'https://github.com/your-username/web-calculator.git'
+                // Checkout code from your repository
+                git branch: 'main', url: 'https://github.com/ninjaadevops/python-calculator.git'
             }
         }
-
+        
         stage('Build Docker Image') {
             steps {
                 script {
-                    docker.build("web-calculator:latest")
-                }
-            }
-        }
-
-        stage('Push Docker Image') {
-            steps {
-                script {
-                    docker.withRegistry('https://index.docker.io/v1/', 'dockerhub-credentials-id') {
-                        docker.image("web-calculator:latest").push("latest")
+                    // Build the Docker image
+                    docker.build("${env.DOCKER_IMAGE}:${env.DOCKER_TAG}")
+                    
+                    // Optionally tag with git commit hash
+                    docker.withRegistry('https://registry.hub.docker.com', 'dockerhub-credentials') {
+                        docker.image("${env.DOCKER_IMAGE}:${env.DOCKER_TAG}").push()
+                        docker.image("${env.DOCKER_IMAGE}:${env.DOCKER_TAG}").tag("${env.DOCKER_IMAGE}:${env.GIT_COMMIT_SHORT}")
+                        docker.image("${env.DOCKER_IMAGE}:${env.GIT_COMMIT_SHORT}").push()
                     }
                 }
             }
         }
-
-        stage('Deploy with Terraform') {
+        
+        stage('Push to DockerHub') {
             steps {
-                dir('terraform') {
-                    sh 'terraform init'
-                    sh 'terraform apply -auto-approve -var="key_name=your-key-name" -var="public_key_path=~/.ssh/your-key.pem"'
+                script {
+                    // Authenticate and push to DockerHub
+                    withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', passwordVariable: 'DOCKERHUB_PASSWORD', usernameVariable: 'DOCKERHUB_USERNAME')]) {
+                        sh "docker login -u ${env.DOCKERHUB_USERNAME} -p ${env.DOCKERHUB_PASSWORD}"
+                        sh "docker push ${env.DOCKER_IMAGE}:${env.DOCKER_TAG}"
+                        sh "docker push ${env.DOCKER_IMAGE}:${env.GIT_COMMIT_SHORT}"
+                    }
                 }
             }
+        }
+        
+        stage('Cleanup') {
+            steps {
+                script {
+                    // Clean up Docker images to save space
+                    sh 'docker system prune -f'
+                }
+            }
+        }
+    }
+    
+    post {
+        always {
+            // Clean workspace after build
+            cleanWs()
+        }
+        success {
+            echo 'Docker image built and pushed to DockerHub successfully!'
+        }
+        failure {
+            echo 'Build failed! Check the logs for details.'
         }
     }
 }
