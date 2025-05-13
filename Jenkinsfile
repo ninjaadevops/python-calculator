@@ -25,12 +25,6 @@ pipeline {
                     // Build the Docker image
                     docker.build("${env.DOCKER_IMAGE}:${env.DOCKER_TAG}")
                     
-                    // Optionally tag with git commit hash
-                    docker.withRegistry('https://registry.hub.docker.com', 'dockerhub-credentials') {
-                        docker.image("${env.DOCKER_IMAGE}:${env.DOCKER_TAG}").push()
-                        docker.image("${env.DOCKER_IMAGE}:${env.DOCKER_TAG}").tag("${env.DOCKER_IMAGE}:${env.GIT_COMMIT_SHORT}")
-                        docker.image("${env.DOCKER_IMAGE}:${env.GIT_COMMIT_SHORT}").push()
-                    }
                 }
             }
         }
