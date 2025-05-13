@@ -9,8 +9,6 @@ pipeline {
         DOCKERHUB_CREDENTIALS = credentials('dockerhub-credentials')
         DOCKER_IMAGE = 'ninjaadevops/python-calculator'
         DOCKER_TAG = 'latest'
-        // Optional: Get commit hash for tagging
-        GIT_COMMIT_SHORT = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
     }
     
     stages {
