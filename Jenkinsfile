@@ -52,6 +52,23 @@ pipeline {
                 }
             }
         }
+        
+        stage('Deploy to EKS') {
+            steps {
+             withCredentials([[
+                 $class: 'AmazonWebServicesCredentialsBinding',
+                  credentialsId: 'aws-eks-creds'
+        ]]) {
+            sh '''
+                aws eks update-kubeconfig --region us-east-1 --name your-eks-cluster-name
+
+                sed "s|IMAGE_PLACEHOLDER|${DOCKER_IMAGE}:${IMAGE_VERSION}|" k8s/deployment.yaml > k8s/deployment-temp.yaml
+
+                kubectl apply -f k8s/deployment-temp.yaml
+            '''
+            }
+        }
+    }
 
         stage('Cleanup') {
             steps {
